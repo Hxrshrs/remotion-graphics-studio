@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Layout, Fit, Alignment, useRive} from '@rive-app/react-webgl2';
-import {CopyIcon, PauseIcon, PlayIcon, SendIcon, SettingsIcon, UploadIcon} from './MageIcon';
+import {CopyIcon, PauseIcon, PlayIcon, PlusIcon, SendIcon, SettingsIcon, TrashIcon, UploadIcon} from './MageIcon';
 import {PageHeader, HeaderTitle} from './PageHeader';
 import {RiveProject} from '../studio/rive';
 import {StudioSettings} from '../studio/types';
@@ -17,6 +17,8 @@ type Props = {
   onModelChange: (model: string) => void;
   onOpenSettings: () => void;
   onRecordSpend: (model: string, cost: number | null) => void;
+  onCreateProject: () => void;
+  onDeleteProject: () => void;
 };
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
@@ -58,7 +60,7 @@ const RiveCanvas: React.FC<{project: RiveProject; onError: (message: string) => 
   );
 };
 
-export const RivePage: React.FC<Props> = ({project, onChange, settings, spend, onModelChange, onOpenSettings, onRecordSpend}) => {
+export const RivePage: React.FC<Props> = ({project, onChange, settings, spend, onModelChange, onOpenSettings, onRecordSpend, onCreateProject, onDeleteProject}) => {
   const fileInput = useRef<HTMLInputElement>(null);
   const chatBottom = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -132,6 +134,12 @@ export const RivePage: React.FC<Props> = ({project, onChange, settings, spend, o
           onChange={(name) => update({name})}
         />
         <div className="min-w-0 flex-1" />
+        <button type="button" onClick={onCreateProject} className="flex h-7 items-center gap-1.5 border border-white/10 bg-surface-raised px-2.5 text-[10px] text-zinc-300 hover:border-white/20 hover:text-white" title="Create another Rive project">
+          <PlusIcon className="h-3 w-3" /> New project
+        </button>
+        <button type="button" onClick={onDeleteProject} className="flex h-7 items-center gap-1.5 border border-white/10 px-2.5 text-[10px] text-zinc-500 hover:border-red-400/30 hover:bg-red-400/[0.06] hover:text-red-300" title="Delete this Rive project">
+          <TrashIcon className="h-3 w-3" /> Delete
+        </button>
         <span className="border border-[#299FFF]/25 bg-[#299FFF]/10 px-2 py-1 font-mono text-[9px] uppercase tracking-[0.1em] text-[#70bcff]">
           Interactive
         </span>

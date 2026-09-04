@@ -2,7 +2,7 @@ import React, {useMemo, useState} from 'react';
 import {MultiplyIcon, RefreshIcon, SearchIcon, SettingsIcon, TrashIcon} from './MageIcon';
 import {StudioProject} from '../studio/types';
 import {Cut} from '../studio/cut';
-import {RiveProject, riveHasContent} from '../studio/rive';
+import {RiveProject} from '../studio/rive';
 import {cutHasContent, projectHasContent} from '../studio/activity';
 import {BrandLogo} from './BrandLogo';
 import {ChatLoader, EditorCutIcon, StudioChatIcon} from './AppIcons';
@@ -108,7 +108,6 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
         time: c.updatedAt || 0,
       }));
     const riveEntries: HistoryEntry[] = riveProjects
-      .filter(riveHasContent)
       .filter((item) => (q ? item.name.toLowerCase().includes(q) : true))
       .map((item) => ({kind: 'rive', id: item.id, name: item.name, time: item.updatedAt}));
     return [...projectEntries, ...cutEntries, ...riveEntries].sort((a, b) => b.time - a.time);
@@ -287,8 +286,8 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
                   <span className="min-w-0 flex-1 truncate text-[11px]">{riveProject.name}</span>
                 </button>
                 {active ? <span className="pointer-events-none absolute left-0 top-0 h-full w-0.5 bg-[#299FFF]" /> : null}
-                {riveProjects.length > 1 && onDeleteRive ? (
-                  <button type="button" aria-label={`Delete ${riveProject.name}`} onClick={(event) => { event.stopPropagation(); onDeleteRive(riveProject.id); }} className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-zinc-500 opacity-0 hover:text-red-400 focus:opacity-100 group-hover:opacity-100 transition-opacity">
+                {onDeleteRive ? (
+                  <button type="button" aria-label={`Delete ${riveProject.name}`} onClick={(event) => { event.stopPropagation(); onDeleteRive(riveProject.id); }} className={`absolute right-1 top-1/2 -translate-y-1/2 p-1 text-zinc-500 hover:text-red-400 focus:opacity-100 group-hover:opacity-100 transition-opacity ${active ? 'opacity-100' : 'opacity-0'}`}>
                     <TrashIcon className="h-3 w-3" />
                   </button>
                 ) : null}

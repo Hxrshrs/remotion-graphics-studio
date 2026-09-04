@@ -48,7 +48,7 @@ import {
   saveSettings,
 } from './studio/storage';
 import {Cut, newCut, withVoiceDefaults} from './studio/cut';
-import {newRiveProject, riveHasContent, RiveProject} from './studio/rive';
+import {newRiveProject, RiveProject} from './studio/rive';
 import {SpendMap, loadSpend, recordSpend, saveSpend} from './studio/spend';
 import {runRenderWithLogs, RenderProgress} from './studio/renderClient';
 import {
@@ -1063,8 +1063,6 @@ export const App: React.FC = () => {
   useEffect(() => saveActiveRiveId(activeRive.id), [activeRive.id]);
 
   const handleCreateRive = useCallback(() => {
-    const active = riveProjects.find((item) => item.id === activeRiveId);
-    if (active && !riveHasContent(active)) return;
     const project = newRiveProject(
       nextUntitledName('Untitled Rive', riveProjects.map((item) => item.name)),
     );
@@ -1074,8 +1072,12 @@ export const App: React.FC = () => {
 
   const handleDeleteRive = useCallback((riveId: string) => {
     setRiveProjects((current) => {
-      if (current.length <= 1) return current;
       const remaining = current.filter((item) => item.id !== riveId);
+      if (!remaining.length) {
+        const replacement = newRiveProject(nextUntitledName('Untitled Rive', []));
+        setActiveRiveId(replacement.id);
+        return [replacement];
+      }
       if (riveId === activeRiveId) setActiveRiveId(remaining[0].id);
       return remaining;
     });
@@ -1199,6 +1201,8 @@ export const App: React.FC = () => {
               return next;
             })
           }
+          onCreateProject={handleCreateRive}
+          onDeleteProject={() => handleDeleteRive(activeRive.id)}
           onChange={(next) =>
             setRiveProjects((current) =>
               current.map((item) => (item.id === next.id ? next : item)),
