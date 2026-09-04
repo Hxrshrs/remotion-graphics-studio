@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.vercel/
+.render-tmp/
+.backup/
+.DS_Store
+player
+.env
+.env.*
+!.env.example
+public/renders/
+public/voice/
+public/images/

@@ -1,0 +1,8 @@
+node_modules
+dist
+.render-tmp
+public/renders
+public/voice
+public/images
+.backup
+.DS_Store
