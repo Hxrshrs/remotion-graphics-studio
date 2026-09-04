@@ -14,7 +14,6 @@ import {PageHeader, HeaderTitle, HeaderRenderButton} from './components/PageHead
 import {Sparkle} from './components/Sparkle';
 import {SettingsModal} from './components/SettingsModal';
 import {StudioSidebar} from './components/StudioSidebar';
-import {RivePage} from './components/RivePage';
 import {EmptyScene, makeSceneComponent} from './remotion/SceneHost';
 import {STARTER_DURATION, STARTER_SCENE} from './remotion/starter';
 import {SceneCompileError, compileScene} from './studio/compile';
@@ -37,18 +36,12 @@ import {
   loadSettingsDurable,
   loadCuts,
   loadActiveCutId,
-  loadActiveRiveId,
-  loadRiveProjects,
-  loadRiveProjectsDurable,
   makeId,
   saveActiveProjectId,
-  saveActiveRiveId,
   saveProjects,
-  saveRiveProjects,
   saveSettings,
 } from './studio/storage';
 import {Cut, newCut, withVoiceDefaults} from './studio/cut';
-import {newRiveProject, RiveProject} from './studio/rive';
 import {SpendMap, loadSpend, recordSpend, saveSpend} from './studio/spend';
 import {runRenderWithLogs, RenderProgress} from './studio/renderClient';
 import {
@@ -130,57 +123,15 @@ export const App: React.FC = () => {
   const [activeProjectId, setActiveProjectId] = useState(
     () => loadActiveProjectId() ?? projects[0].id,
   );
-  const [riveProjects, setRiveProjects] = useState<RiveProject[]>(() => {
-    const stored = loadRiveProjects();
-    return stored.length
-      ? stored.map((project) => ({...project, messages: project.messages ?? []}))
-      : [newRiveProject(nextUntitledName('Untitled Rive', []))];
-  });
-  const [activeRiveId, setActiveRiveId] = useState(() => {
-    const stored = loadActiveRiveId();
-    return stored && riveProjects.some((project) => project.id === stored)
-      ? stored
-      : riveProjects[0].id;
-  });
-  const activeRiveIdRef = useRef(activeRiveId);
-  activeRiveIdRef.current = activeRiveId;
-  const riveProjectsRef = useRef(riveProjects);
-  riveProjectsRef.current = riveProjects;
-  // A user edit made while IndexedDB is still hydrating always wins. Without
-  // this guard, an older durable snapshot can resurrect a deleted project.
-  const riveMutationVersionRef = useRef(0);
-
-  const persistRiveProjects = useCallback((next: RiveProject[]) => {
-    riveMutationVersionRef.current += 1;
-    riveProjectsRef.current = next;
-    setRiveProjects(next);
-    saveRiveProjects(next);
-  }, []);
-
-  const selectRiveProject = useCallback((projectId: string) => {
-    activeRiveIdRef.current = projectId;
-    setActiveRiveId(projectId);
-    saveActiveRiveId(projectId);
-  }, []);
-
-  const updateRiveProject = useCallback((nextProject: RiveProject) => {
-    const next = riveProjectsRef.current.map((project) =>
-      project.id === nextProject.id ? nextProject : project,
-    );
-    // An async assistant reply for a project deleted while it was running is
-    // ignored instead of recreating or overwriting the current collection.
-    if (!next.some((project) => project.id === nextProject.id)) return;
-    persistRiveProjects(next);
-  }, [persistRiveProjects]);
   const [settings, setSettings] = useState<StudioSettings>(loadSettings);
   const [showSettings, setShowSettings] = useState(false);
   const [inspector, setInspector] = useState<'ai' | 'code'>('ai');
   // The studio builds one graphic; the editor builds a whole cut from a
   // transcript. They share the sidebar, the settings, and the spend ledger.
-  const [page, setPage] = useState<'studio' | 'editor' | 'rive'>(() => {
+  const [page, setPage] = useState<'studio' | 'editor'>(() => {
     try {
       const saved = localStorage.getItem('rendr_active_page');
-      if (saved === 'editor' || saved === 'studio' || saved === 'rive') return saved;
+      if (saved === 'editor' || saved === 'studio') return saved;
     } catch {}
     return 'studio';
   });
@@ -257,11 +208,6 @@ export const App: React.FC = () => {
     | {
         type: 'cut';
         cut: Cut;
-        index: number;
-      }
-    | {
-        type: 'rive';
-        rive: RiveProject;
         index: number;
       };
 
@@ -343,19 +289,10 @@ export const App: React.FC = () => {
         return next;
       });
       setActiveCutId(cut.id);
-    } else if (undoToast.type === 'rive') {
-      const {rive, index} = undoToast;
-      const next = riveProjectsRef.current.filter((project) => project.id !== rive.id);
-      const restored = next.some((project) => project.name === rive.name)
-        ? {...rive, name: nextUntitledName(rive.name, next.map((project) => project.name))}
-        : rive;
-      next.splice(Math.min(Math.max(0, index), next.length), 0, restored);
-      persistRiveProjects(next);
-      selectRiveProject(restored.id);
     }
     clearUndoTimers();
     setUndoToast(null);
-  }, [undoToast, clearUndoTimers, persistRiveProjects, selectRiveProject]);
+  }, [undoToast, clearUndoTimers]);
 
   const dismissUndoToast = useCallback(() => {
     clearUndoTimers();
@@ -384,9 +321,7 @@ export const App: React.FC = () => {
             (max, project) => Math.max(max, project.updatedAt),
             0,
           );
-          return storedLatest > currentLatest
-            ? stored.map((project) => ({...project, messages: project.messages ?? []}))
-            : current;
+          return storedLatest > currentLatest ? stored : current;
         });
       })
       .finally(() => {
@@ -1076,74 +1011,6 @@ export const App: React.FC = () => {
   });
   const [activeCutId, setActiveCutId] = useState<string>(() => loadActiveCutId() ?? cuts[0]?.id ?? 'cut-1');
 
-  const activeRive =
-    riveProjects.find((project) => project.id === activeRiveId) ?? riveProjects[0];
-
-  useEffect(() => {
-    let live = true;
-    const startingMutationVersion = riveMutationVersionRef.current;
-    loadRiveProjectsDurable()
-      .then((stored) => {
-        if (
-          !live ||
-          !stored?.length ||
-          riveMutationVersionRef.current !== startingMutationVersion
-        ) return;
-        setRiveProjects((current) => {
-          const currentLatest = Math.max(...current.map((item) => item.updatedAt));
-          const storedLatest = Math.max(...stored.map((item) => item.updatedAt));
-          if (storedLatest <= currentLatest) return current;
-          const hydrated = stored.map((project) => ({
-            ...project,
-            messages: project.messages ?? [],
-          }));
-          riveProjectsRef.current = hydrated;
-          if (!hydrated.some((project) => project.id === activeRiveIdRef.current)) {
-            selectRiveProject(hydrated[0].id);
-          }
-          return hydrated;
-        });
-      })
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, [selectRiveProject]);
-
-  useEffect(() => saveActiveRiveId(activeRive.id), [activeRive.id]);
-
-  const handleCreateRive = useCallback(() => {
-    const project = newRiveProject(
-      nextUntitledName(
-        'Untitled Rive',
-        riveProjectsRef.current.map((item) => item.name),
-      ),
-    );
-    persistRiveProjects([...riveProjectsRef.current, project]);
-    selectRiveProject(project.id);
-  }, [persistRiveProjects, selectRiveProject]);
-
-  const handleDeleteRive = useCallback((riveId: string) => {
-    const current = riveProjectsRef.current;
-    const projectIndex = current.findIndex((project) => project.id === riveId);
-    if (projectIndex === -1) return;
-    const project = current[projectIndex];
-    const remaining = current.filter((item) => item.id !== riveId);
-    const next = remaining.length
-      ? remaining
-      : [newRiveProject(nextUntitledName('Untitled Rive', []))];
-
-    persistRiveProjects(next);
-    if (riveId === activeRiveIdRef.current || !remaining.length) {
-      selectRiveProject(next[0].id);
-    }
-    triggerUndoToast({
-      type: 'rive',
-      rive: project,
-      index: projectIndex,
-    });
-  }, [persistRiveProjects, selectRiveProject, triggerUndoToast]);
-
   const handleCreateCut = useCallback(() => {
     // Same anti-spam rule as projects: reuse the active cut while untouched.
     const active = cuts.find((c) => c.id === activeCutId);
@@ -1212,11 +1079,6 @@ export const App: React.FC = () => {
         onCreateCut={handleCreateCut}
         onSelectCut={setActiveCutId}
         onDeleteCut={handleDeleteCut}
-        riveProjects={riveProjects}
-        activeRiveId={activeRive.id}
-        onCreateRive={handleCreateRive}
-        onSelectRive={selectRiveProject}
-        onDeleteRive={handleDeleteRive}
         onOpenSettings={() => setShowSettings(true)}
         page={page}
         onChangePage={setPage}
@@ -1248,24 +1110,6 @@ export const App: React.FC = () => {
             onDeleteCut={handleDeleteCut}
           />
         </div>
-      ) : page === 'rive' ? (
-        <RivePage
-          project={activeRive}
-          settings={settings}
-          spend={spend}
-          onModelChange={(selectedModel) => setSettings({...settings, selectedModel})}
-          onOpenSettings={() => setShowSettings(true)}
-          onRecordSpend={(model, cost) =>
-            setSpend((current) => {
-              const next = recordSpend(current, model, cost);
-              saveSpend(next);
-              return next;
-            })
-          }
-          onCreateProject={handleCreateRive}
-          onDeleteProject={() => handleDeleteRive(activeRive.id)}
-          onChange={updateRiveProject}
-        />
       ) : (
         <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#121211]">
           <PageHeader>
