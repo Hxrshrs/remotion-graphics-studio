@@ -69,7 +69,12 @@ export const RivePage: React.FC<Props> = ({project, onChange, settings, spend, o
   const update = (patch: Partial<RiveProject>) =>
     onChange({...project, ...patch, updatedAt: Date.now()});
 
-  useEffect(() => chatBottom.current?.scrollIntoView({behavior: 'smooth'}), [project.messages, thinking]);
+  useEffect(() => {
+    // Some embedded browsers return a Promise from scrollIntoView(). Never
+    // return that value from an effect: React would treat it as a cleanup
+    // function and crash when this page unmounts.
+    chatBottom.current?.scrollIntoView({behavior: 'smooth'});
+  }, [project.messages, thinking]);
 
   const send = async () => {
     const instruction = draft.trim();
