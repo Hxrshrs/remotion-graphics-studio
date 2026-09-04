@@ -1,6 +1,6 @@
 import {isIP} from 'node:net';
-import type {ApiRequest, ApiResponse, JsonRecord} from '../../server/http';
-import {errorStatus, httpError, readJsonBody, routeParam, sendJson} from '../../server/http';
+import type {ApiRequest, ApiResponse, JsonRecord} from '../../server/http.js';
+import {errorStatus, httpError, readJsonBody, routeParam, sendJson} from '../../server/http.js';
 
 const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
 const IMAGE_FETCH_TIMEOUT_MS = 12_000;

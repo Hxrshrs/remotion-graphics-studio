@@ -1,5 +1,5 @@
-import type {ApiRequest, ApiResponse, JsonRecord} from '../../server/http';
-import {errorStatus, httpError, readJsonBody, routeParam, sendJson, sendUpstream} from '../../server/http';
+import type {ApiRequest, ApiResponse, JsonRecord} from '../../server/http.js';
+import {errorStatus, httpError, readJsonBody, routeParam, sendJson, sendUpstream} from '../../server/http.js';
 
 const PROVIDERS = {
   openrouter: {

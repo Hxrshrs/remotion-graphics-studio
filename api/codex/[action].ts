@@ -1,5 +1,5 @@
-import type {ApiRequest, ApiResponse} from '../../server/http';
-import {routeParam, sendJson} from '../../server/http';
+import type {ApiRequest, ApiResponse} from '../../server/http.js';
+import {routeParam, sendJson} from '../../server/http.js';
 
 export default function handler(request: ApiRequest, response: ApiResponse) {
   const action = routeParam(request, 'action');

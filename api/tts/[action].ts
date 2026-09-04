@@ -1,5 +1,5 @@
-import type {ApiRequest, ApiResponse, JsonRecord} from '../../server/http';
-import {errorStatus, httpError, readJsonBody, routeParam, sendJson, sendStreamingJson} from '../../server/http';
+import type {ApiRequest, ApiResponse, JsonRecord} from '../../server/http.js';
+import {errorStatus, httpError, readJsonBody, routeParam, sendJson, sendStreamingJson} from '../../server/http.js';
 
 export const maxDuration = 300;
 

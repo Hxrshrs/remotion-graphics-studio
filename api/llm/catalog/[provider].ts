@@ -1,5 +1,5 @@
-import type {ApiRequest, ApiResponse} from '../../../server/http';
-import {errorStatus, httpError, readJsonBody, routeParam, sendJson, sendUpstream} from '../../../server/http';
+import type {ApiRequest, ApiResponse} from '../../../server/http.js';
+import {errorStatus, httpError, readJsonBody, routeParam, sendJson, sendUpstream} from '../../../server/http.js';
 
 export default async function handler(request: ApiRequest, response: ApiResponse) {
   try {
