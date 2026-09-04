@@ -34,9 +34,10 @@ type StudioSidebarProps = {
   onOpenSettings: () => void;
   // Undo Toast
   undoToast?: {
-    type: 'project' | 'cut';
+    type: 'project' | 'cut' | 'rive';
     project?: StudioProject;
     cut?: Cut;
+    rive?: RiveProject;
     key: number;
   } | null;
   undoSecondsLeft?: number;
@@ -421,7 +422,11 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
 
           <div className="flex items-center justify-between gap-1 text-[11px] mb-1.5 pt-0.5">
             <span className="truncate font-medium text-zinc-200">
-              {undoToast.type === 'project' ? undoToast.project?.name : undoToast.cut?.name}
+              {undoToast.type === 'project'
+                ? undoToast.project?.name
+                : undoToast.type === 'cut'
+                  ? undoToast.cut?.name
+                  : undoToast.rive?.name}
             </span>
             <button
               type="button"

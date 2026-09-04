@@ -4,10 +4,11 @@ import {CopyIcon, PauseIcon, PlayIcon, PlusIcon, SendIcon, SettingsIcon, TrashIc
 import {PageHeader, HeaderTitle} from './PageHeader';
 import {RiveProject} from '../studio/rive';
 import {StudioSettings} from '../studio/types';
-import {requestRiveHelp} from '../studio/riveAssistant';
+import {requestRiveHelp, validateRiveAssistantReply} from '../studio/riveAssistant';
 import {ModelPicker} from './ModelPicker';
 import {SpendMap} from '../studio/spend';
 import {Spinner} from './AppIcons';
+import {useCodexAuth} from '../studio/codex';
 
 type Props = {
   project: RiveProject;
@@ -22,6 +23,34 @@ type Props = {
 };
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+
+class RivePreviewBoundary extends React.Component<
+  {children: React.ReactNode; onError: (message: string) => void},
+  {failed: boolean}
+> {
+  state = {failed: false};
+
+  static getDerivedStateFromError() {
+    return {failed: true};
+  }
+
+  componentDidCatch(error: unknown) {
+    this.props.onError(
+      error instanceof Error ? error.message : 'The Rive preview stopped unexpectedly.',
+    );
+  }
+
+  render() {
+    if (this.state.failed) {
+      return (
+        <div className="flex h-full items-center justify-center p-8 text-center text-[11px] text-red-300">
+          This Rive file could not be displayed. Check the file, artboard, and state-machine names.
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const RiveCanvas: React.FC<{project: RiveProject; onError: (message: string) => void}> = ({
   project,
@@ -67,6 +96,7 @@ export const RivePage: React.FC<Props> = ({project, onChange, settings, spend, o
   const [panel, setPanel] = useState<'chat' | 'configure'>('chat');
   const [draft, setDraft] = useState('');
   const [thinking, setThinking] = useState(false);
+  const {auth: codexAuth} = useCodexAuth();
 
   const update = (patch: Partial<RiveProject>) =>
     onChange({...project, ...patch, updatedAt: Date.now()});
@@ -87,7 +117,7 @@ export const RivePage: React.FC<Props> = ({project, onChange, settings, spend, o
     setDraft('');
     setThinking(true);
     try {
-      const reply = await requestRiveHelp({settings, instruction, history});
+      const reply = await requestRiveHelp({settings, instruction, history, project});
       onRecordSpend(settings.selectedModel, reply.cost);
       onChange({
         ...project,
@@ -149,7 +179,12 @@ export const RivePage: React.FC<Props> = ({project, onChange, settings, spend, o
         <main className="min-w-0 flex-1 p-5">
           <div className="h-full overflow-hidden border border-white/[0.08] bg-[#0b0b0b] shadow-2xl">
             {project.src ? (
-              <RiveCanvas key={`${project.src}|${project.artboard}|${project.stateMachine}`} project={project} onError={(message) => setError(message)} />
+              <RivePreviewBoundary
+                key={`${project.src}|${project.artboard}|${project.stateMachine}`}
+                onError={setError}
+              >
+                <RiveCanvas project={project} onError={setError} />
+              </RivePreviewBoundary>
             ) : (
               <button type="button" onClick={() => fileInput.current?.click()} className="flex h-full w-full flex-col items-center justify-center gap-3 text-zinc-500 hover:bg-white/[0.015] hover:text-zinc-300">
                 <span className="grid h-12 w-12 place-items-center border border-dashed border-white/15">
@@ -179,21 +214,32 @@ export const RivePage: React.FC<Props> = ({project, onChange, settings, spend, o
                     <h2 className="mt-2 text-sm text-white">Design the interaction</h2>
                     <p className="mt-2 max-w-[250px] text-[11px] leading-relaxed text-zinc-500">Ask for state-machine structure, data binding, or Luau code to paste into the Rive editor.</p>
                     <div className="mt-4 flex w-full flex-col gap-1.5">
-                      {['Write a hover interaction in Luau', 'Plan a button state machine', 'Make this responsive with layouts'].map((prompt) => (
+                      {['Design a hover interaction', 'Plan a button state machine', 'Make this responsive with layouts'].map((prompt) => (
                         <button key={prompt} onClick={() => setDraft(prompt)} className="border border-white/[0.08] bg-[#121211] px-2.5 py-2 text-left text-[11px] text-zinc-400 hover:border-white/20 hover:text-white">{prompt}</button>
                       ))}
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {project.messages.map((message) => (
-                      <div key={message.id} className={message.role === 'user' ? 'flex justify-end' : ''}>
-                        <div className={`${message.role === 'user' ? 'max-w-[92%] bg-[#201F1D] px-3 py-2.5 text-zinc-200' : message.isError ? 'text-red-300' : 'text-zinc-300'} whitespace-pre-wrap text-[11px] leading-relaxed`}>
-                          {message.content}
-                          {message.role === 'assistant' && !message.isError ? <button onClick={() => navigator.clipboard.writeText(message.content)} title="Copy response" className="ml-2 inline-flex align-middle text-zinc-600 hover:text-white"><CopyIcon className="h-3 w-3" /></button> : null}
+                    {project.messages.map((message) => {
+                      const invalidRiveApis =
+                        message.role === 'assistant' && !message.isError
+                          ? validateRiveAssistantReply(message.content)
+                          : [];
+                      return (
+                        <div key={message.id} className={message.role === 'user' ? 'flex justify-end' : ''}>
+                          <div className={`${message.role === 'user' ? 'max-w-[92%] bg-[#201F1D] px-3 py-2.5 text-zinc-200' : message.isError || invalidRiveApis.length ? 'text-red-300' : 'text-zinc-300'} whitespace-pre-wrap text-[11px] leading-relaxed`}>
+                            {invalidRiveApis.length ? (
+                              <div className="mb-2 border border-red-400/20 bg-red-400/[0.06] p-2 text-[10px]">
+                                This older reply uses unsupported Rive APIs and should not be pasted into the editor.
+                              </div>
+                            ) : null}
+                            {message.content}
+                            {message.role === 'assistant' && !message.isError && !invalidRiveApis.length ? <button onClick={() => navigator.clipboard.writeText(message.content)} title="Copy response" className="ml-2 inline-flex align-middle text-zinc-600 hover:text-white"><CopyIcon className="h-3 w-3" /></button> : null}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     {thinking ? <div className="flex items-center gap-2 text-[11px] text-zinc-500"><Spinner className="h-3.5 w-3.5 text-[#70bcff]" /> Writing Rive guidance…</div> : null}
                     <div ref={chatBottom} />
                   </div>
@@ -203,7 +249,7 @@ export const RivePage: React.FC<Props> = ({project, onChange, settings, spend, o
                 <div className="border border-white/[0.08] bg-[#121211] p-2 focus-within:border-white/20">
                   <textarea rows={2} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder="Ask about this Rive interaction…" className="block max-h-32 w-full resize-none bg-transparent px-1 py-1 text-xs text-white outline-none placeholder:text-zinc-600" />
                   <div className="mt-1 flex items-center justify-between">
-                    <ModelPicker models={settings.modelSlugs} value={settings.selectedModel} onChange={onModelChange} readyProviders={{openrouter: Boolean(settings.apiKey.trim()), google: Boolean(settings.googleApiKey.trim()), openlux: Boolean(settings.openluxApiKey.trim()), codex: false}} openLuxApiKey={settings.openluxApiKey} spend={spend} />
+                    <ModelPicker models={settings.modelSlugs} value={settings.selectedModel} onChange={onModelChange} readyProviders={{openrouter: Boolean(settings.apiKey.trim()), google: Boolean(settings.googleApiKey.trim()), openlux: Boolean(settings.openluxApiKey.trim()), codex: codexAuth.status === 'authenticated'}} openLuxApiKey={settings.openluxApiKey} spend={spend} />
                     <button onClick={() => void send()} disabled={!draft.trim() || thinking} className="grid h-7 w-7 place-items-center bg-[#2A2928] text-[#299FFF] hover:text-white disabled:bg-transparent disabled:text-zinc-600">{thinking ? <Spinner className="h-3.5 w-3.5" /> : <SendIcon className="h-3.5 w-3.5" />}</button>
                   </div>
                 </div>
