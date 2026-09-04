@@ -13,6 +13,7 @@
     "@remotion/media": "4.0.518",
     "@remotion/player": "4.0.518",
     "@remotion/web-renderer": "4.0.518",
+    "@rive-app/react-webgl2": "^4.34.0",
     "@types/babel__standalone": "^7.1.9",
     "clsx": "^2.1.1",
     "html2canvas": "^1.4.1",

@@ -1,5 +1,6 @@
 import {DEFAULT_OPENLUX_MODEL, providerForModel, sanitizeApiKey} from './models';
 import {Cut} from './cut';
+import type {RiveProject} from './rive';
 import {StudioProject, StudioSettings} from './types';
 
 const PROJECTS_KEY = 'motion-studio.projects.v1';
@@ -7,6 +8,8 @@ const ACTIVE_PROJECT_KEY = 'motion-studio.active-project.v1';
 const SETTINGS_KEY = 'motion-studio.openrouter.v1';
 const CUTS_KEY = 'motion-studio.cuts.v1';
 const ACTIVE_CUT_KEY = 'motion-studio.active-cut.v1';
+const RIVE_PROJECTS_KEY = 'motion-studio.rive-projects.v1';
+const ACTIVE_RIVE_KEY = 'motion-studio.active-rive.v1';
 // Keys persist in localStorage so they survive a reload or a reopened tab.
 // The sessionStorage names are the previous home, read once for migration.
 const OPENROUTER_KEY = 'motion-studio.openrouter-key.v1';
@@ -240,6 +243,33 @@ export const loadActiveCutId = () => window.localStorage.getItem(ACTIVE_CUT_KEY)
 export const saveActiveCutId = (cutId: string) => {
   try {
     window.localStorage.setItem(ACTIVE_CUT_KEY, cutId);
+  } catch {
+    // Keep the in-memory selection.
+  }
+};
+
+/* ─────────────── Rive interactive projects ─────────────── */
+
+export const loadRiveProjects = () => readJson<RiveProject[]>(RIVE_PROJECTS_KEY, []);
+
+export const loadRiveProjectsDurable = () => idb.get<RiveProject[]>(RIVE_PROJECTS_KEY);
+
+export const saveRiveProjects = (projects: RiveProject[]) => {
+  // Uploaded .riv files can exceed localStorage's quota, so IndexedDB is the
+  // durable copy. URLs and small files still get a fast localStorage mirror.
+  void idb.set(RIVE_PROJECTS_KEY, projects).catch(() => {});
+  try {
+    window.localStorage.setItem(RIVE_PROJECTS_KEY, JSON.stringify(projects));
+  } catch {
+    // The IndexedDB copy remains available after reload.
+  }
+};
+
+export const loadActiveRiveId = () => window.localStorage.getItem(ACTIVE_RIVE_KEY);
+
+export const saveActiveRiveId = (projectId: string) => {
+  try {
+    window.localStorage.setItem(ACTIVE_RIVE_KEY, projectId);
   } catch {
     // Keep the in-memory selection.
   }

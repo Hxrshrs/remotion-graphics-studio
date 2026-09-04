@@ -14,6 +14,7 @@ import {PageHeader, HeaderTitle, HeaderRenderButton} from './components/PageHead
 import {Sparkle} from './components/Sparkle';
 import {SettingsModal} from './components/SettingsModal';
 import {StudioSidebar} from './components/StudioSidebar';
+import {RivePage} from './components/RivePage';
 import {EmptyScene, makeSceneComponent} from './remotion/SceneHost';
 import {STARTER_DURATION, STARTER_SCENE} from './remotion/starter';
 import {SceneCompileError, compileScene} from './studio/compile';
@@ -36,12 +37,18 @@ import {
   loadSettingsDurable,
   loadCuts,
   loadActiveCutId,
+  loadActiveRiveId,
+  loadRiveProjects,
+  loadRiveProjectsDurable,
   makeId,
   saveActiveProjectId,
+  saveActiveRiveId,
   saveProjects,
+  saveRiveProjects,
   saveSettings,
 } from './studio/storage';
 import {Cut, newCut, withVoiceDefaults} from './studio/cut';
+import {newRiveProject, riveHasContent, RiveProject} from './studio/rive';
 import {SpendMap, loadSpend, recordSpend, saveSpend} from './studio/spend';
 import {runRenderWithLogs, RenderProgress} from './studio/renderClient';
 import {
@@ -128,10 +135,10 @@ export const App: React.FC = () => {
   const [inspector, setInspector] = useState<'ai' | 'code'>('ai');
   // The studio builds one graphic; the editor builds a whole cut from a
   // transcript. They share the sidebar, the settings, and the spend ledger.
-  const [page, setPage] = useState<'studio' | 'editor'>(() => {
+  const [page, setPage] = useState<'studio' | 'editor' | 'rive'>(() => {
     try {
       const saved = localStorage.getItem('rendr_active_page');
-      if (saved === 'editor' || saved === 'studio') return saved;
+      if (saved === 'editor' || saved === 'studio' || saved === 'rive') return saved;
     } catch {}
     return 'studio';
   });
@@ -1011,6 +1018,63 @@ export const App: React.FC = () => {
   });
   const [activeCutId, setActiveCutId] = useState<string>(() => loadActiveCutId() ?? cuts[0]?.id ?? 'cut-1');
 
+  const [riveProjects, setRiveProjects] = useState<RiveProject[]>(() => {
+    const stored = loadRiveProjects();
+    return stored.length ? stored : [newRiveProject(nextUntitledName('Untitled Rive', []))];
+  });
+  const [riveProjectsReady, setRiveProjectsReady] = useState(false);
+  const [activeRiveId, setActiveRiveId] = useState(
+    () => loadActiveRiveId() ?? riveProjects[0].id,
+  );
+  const activeRive =
+    riveProjects.find((project) => project.id === activeRiveId) ?? riveProjects[0];
+
+  useEffect(() => {
+    let live = true;
+    loadRiveProjectsDurable()
+      .then((stored) => {
+        if (!live || !stored?.length) return;
+        setRiveProjects((current) => {
+          const currentLatest = Math.max(...current.map((item) => item.updatedAt));
+          const storedLatest = Math.max(...stored.map((item) => item.updatedAt));
+          return storedLatest > currentLatest ? stored : current;
+        });
+      })
+      .finally(() => {
+        if (live) setRiveProjectsReady(true);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!riveProjectsReady) return;
+    const timer = window.setTimeout(() => saveRiveProjects(riveProjects), 200);
+    return () => window.clearTimeout(timer);
+  }, [riveProjects, riveProjectsReady]);
+
+  useEffect(() => saveActiveRiveId(activeRive.id), [activeRive.id]);
+
+  const handleCreateRive = useCallback(() => {
+    const active = riveProjects.find((item) => item.id === activeRiveId);
+    if (active && !riveHasContent(active)) return;
+    const project = newRiveProject(
+      nextUntitledName('Untitled Rive', riveProjects.map((item) => item.name)),
+    );
+    setRiveProjects((current) => [...current, project]);
+    setActiveRiveId(project.id);
+  }, [activeRiveId, riveProjects]);
+
+  const handleDeleteRive = useCallback((riveId: string) => {
+    setRiveProjects((current) => {
+      if (current.length <= 1) return current;
+      const remaining = current.filter((item) => item.id !== riveId);
+      if (riveId === activeRiveId) setActiveRiveId(remaining[0].id);
+      return remaining;
+    });
+  }, [activeRiveId]);
+
   const handleCreateCut = useCallback(() => {
     // Same anti-spam rule as projects: reuse the active cut while untouched.
     const active = cuts.find((c) => c.id === activeCutId);
@@ -1079,6 +1143,11 @@ export const App: React.FC = () => {
         onCreateCut={handleCreateCut}
         onSelectCut={setActiveCutId}
         onDeleteCut={handleDeleteCut}
+        riveProjects={riveProjects}
+        activeRiveId={activeRive.id}
+        onCreateRive={handleCreateRive}
+        onSelectRive={setActiveRiveId}
+        onDeleteRive={handleDeleteRive}
         onOpenSettings={() => setShowSettings(true)}
         page={page}
         onChangePage={setPage}
@@ -1110,6 +1179,15 @@ export const App: React.FC = () => {
             onDeleteCut={handleDeleteCut}
           />
         </div>
+      ) : page === 'rive' ? (
+        <RivePage
+          project={activeRive}
+          onChange={(next) =>
+            setRiveProjects((current) =>
+              current.map((item) => (item.id === next.id ? next : item)),
+            )
+          }
+        />
       ) : (
         <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#121211]">
           <PageHeader>
