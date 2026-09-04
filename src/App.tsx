@@ -328,7 +328,9 @@ export const App: React.FC = () => {
             (max, project) => Math.max(max, project.updatedAt),
             0,
           );
-          return storedLatest > currentLatest ? stored : current;
+          return storedLatest > currentLatest
+            ? stored.map((project) => ({...project, messages: project.messages ?? []}))
+            : current;
         });
       })
       .finally(() => {
@@ -1020,7 +1022,9 @@ export const App: React.FC = () => {
 
   const [riveProjects, setRiveProjects] = useState<RiveProject[]>(() => {
     const stored = loadRiveProjects();
-    return stored.length ? stored : [newRiveProject(nextUntitledName('Untitled Rive', []))];
+    return stored.length
+      ? stored.map((project) => ({...project, messages: project.messages ?? []}))
+      : [newRiveProject(nextUntitledName('Untitled Rive', []))];
   });
   const [riveProjectsReady, setRiveProjectsReady] = useState(false);
   const [activeRiveId, setActiveRiveId] = useState(
@@ -1037,7 +1041,9 @@ export const App: React.FC = () => {
         setRiveProjects((current) => {
           const currentLatest = Math.max(...current.map((item) => item.updatedAt));
           const storedLatest = Math.max(...stored.map((item) => item.updatedAt));
-          return storedLatest > currentLatest ? stored : current;
+          return storedLatest > currentLatest
+            ? stored.map((project) => ({...project, messages: project.messages ?? []}))
+            : current;
         });
       })
       .finally(() => {
@@ -1182,6 +1188,17 @@ export const App: React.FC = () => {
       ) : page === 'rive' ? (
         <RivePage
           project={activeRive}
+          settings={settings}
+          spend={spend}
+          onModelChange={(selectedModel) => setSettings({...settings, selectedModel})}
+          onOpenSettings={() => setShowSettings(true)}
+          onRecordSpend={(model, cost) =>
+            setSpend((current) => {
+              const next = recordSpend(current, model, cost);
+              saveSpend(next);
+              return next;
+            })
+          }
           onChange={(next) =>
             setRiveProjects((current) =>
               current.map((item) => (item.id === next.id ? next : item)),

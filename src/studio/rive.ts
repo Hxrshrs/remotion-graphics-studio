@@ -1,4 +1,5 @@
 import {makeId} from './storage';
+import type {StudioMessage} from './types';
 
 export type RiveProject = {
   id: string;
@@ -8,6 +9,7 @@ export type RiveProject = {
   artboard: string;
   stateMachine: string;
   autoplay: boolean;
+  messages: StudioMessage[];
   createdAt: number;
   updatedAt: number;
 };
@@ -21,6 +23,7 @@ export const newRiveProject = (name: string): RiveProject => {
     artboard: '',
     stateMachine: '',
     autoplay: true,
+    messages: [],
     createdAt: now,
     updatedAt: now,
   };
